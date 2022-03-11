@@ -1,0 +1,185 @@
+ELK  Stack Installation
+--------------------------
+
+refer :- https://www.elastic.co/guide/en/elasticsearch/reference/current/rpm.html
+
+Install Elastic Search (port = 9200)
+---------------------------
+sudo su -
+
+rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
+
+vi /etc/yum.repos.d/elasticsearch.repo (add below content)
+
+[elasticsearch]
+name=Elasticsearch repository for 7.x packages
+baseurl=https://artifacts.elastic.co/packages/7.x/yum
+gpgcheck=1
+gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
+enabled=0
+autorefresh=1
+type=rpm-md
+
+yum install elasticsearch -y
+
+change configuration details (To get connectivty between Elastc search and Kibana)
+----------------------
+vi /etc/elasticsearch/elasticsearch.yml
+
+--- change cluster name
+cluster.name: demo-elk  
+
+--- give the cluster a descriptive name
+node.name: elk-1
+
+--- change network binding
+network.host: 0.0.0.0  
+
+--- setup discovery.type as single node
+discovery.type: single-node
+
+save and exit
+
+systemctl daemon-reload
+systemctl enable elasticsearch
+systemctl start elasticsearch
+systemctl status elasticsearch
+
+
+Kibana (port 5601)
+-------------------
+
+refer :- https://www.elastic.co/guide/en/kibana/7.8/rpm.html#rpm-repo
+
+rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
+
+vi /etc/yum.repos.d/kibana.repo (add content in file)
+
+[kibana-7.x]
+name=Kibana repository for 7.x packages
+baseurl=https://artifacts.elastic.co/packages/7.x/yum
+gpgcheck=1
+gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
+enabled=1
+autorefresh=1
+type=rpm-md
+
+yum install kibana -y
+
+
+change configuration details (To get connectivty between Elastc search and Kibana)
+-------------------------
+
+vi /etc/kibana/kibana.yml
+
+uncomment server.port
+server.port: 5601
+
+server base url however this needs to be corrected everytime you start and stop the server
+server.publicBaseUrl: "http://192.168.1.3:5601/" (privat ip of kibana)
+
+change server.host
+server.host: "0.0.0.0"
+
+change server.name
+server.name: "demo-kibana"
+
+uncomment elasticsearch.host
+elasticsearch.hosts: ["http://localhost:9200"]
+
+save and exit
+
+systemctl daemon-reload
+systemctl enable kibana.service
+systemctl start kibana.service
+systemctl status kibana.service
+
+
+Logstash
+---------
+rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
+
+vi /etc/yum.repos.d/logstash.repo
+
+[logstash-7.x]
+name=Elastic repository for 7.x packages
+baseurl=https://artifacts.elastic.co/packages/7.x/yum
+gpgcheck=1
+gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
+enabled=1
+autorefresh=1
+type=rpm-md
+
+yum install logstash -y
+
+systemctl daemon-reload
+systemctl enable logstash
+systemctl start logstash
+systemctl status logstash
+
+change configuration details ( to get connectivity between logstash and kibana)
+-------------------------------
+1) Create file in these location /etc/logstash/conf.d/apache.conf(filename)
+insert data in that file
+
+input {
+  file {
+    path => "/var/log/httpd/access_log"
+    type => "serverlog"
+  }
+
+  file {
+    path => "/var/log/httpd/error_log"
+    type => "serverlog"
+  }
+}
+
+filter {
+  if [type] == "apache-access" {
+    grok {
+      match => [ "message", "%{COMBINEDAPACHELOG}" ]
+    }
+  }
+}
+
+output {
+   elasticsearch {
+       hosts => ["172.31.12.222:9200"]
+       #user => "elastic"
+       #password => "elastic123"
+       index => "apachelog-1"
+       manage_template => false
+   }
+}
+
+2) go to /usr/share/logstash location and run 
+ 
+ /bin/logstash -f /etc/logstash/conf.d/apache.conf
+
+3) if u run these command,then u will get logs to kibana
+  at that time command is in running mode, if u exit u don't get logs continiously
+
+4) To avoid that run command in the background
+
+  /bin/logstash -f /etc/logstash/conf.d/apache.conf &
+
+
+
+kibana GUI
+---------------
+
+goto Stack Management----Index patterns----- create index pattern
+
+goto Dashboard --- create visualization  --- save 
+
+In Discover u get, hits count, time etc...
+In Dashboard u get pictorial representation of logs.
+
+
+
+© 2022 GitHub, Inc.
+Terms
+Privacy
+Security
+Status
+D
